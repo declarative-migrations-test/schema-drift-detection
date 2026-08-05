@@ -1,3 +1,6 @@
 # AGENTS.md
 
-Keep drift injection unauthorized and deterministic. The fail-closed exit-code assertions are security contracts. Never remove the live PostgreSQL or CockroachDB coverage, never suppress residual SQL, and never permit destructive repair without the explicit `--allow-destructive` gate.
+Repository: `declarative-migrations-test/schema-drift-detection`  
+Production dependency: `declarative-migrations/declarative-postgres-migrate.rs@21eb846e356b2a5aff068b21e77903e6cca50452`
+
+Use focused pull requests. Keep database tests deterministic and self-cleaning. Never weaken a failing convergence, rollback, drift, locking, atomicity, CLI, or MCP assertion merely to make CI green. Never commit credentials or production data. Resolve conflicts semantically with both sides and relevant history.
