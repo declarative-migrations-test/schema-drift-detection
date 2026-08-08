@@ -1,0 +1,83 @@
+name: Canonical quote GitOps certification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: canonical-quote-gitops-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout test harness
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Checkout exact Canonical GitOps candidate
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: canonical-cloud/canonical-infra
+          ref: 239d3690e69eb14d195e9fccde3a9c21a8032dcf
+          path: canonical-infra
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable GitOps source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C canonical-infra rev-parse HEAD)" = \
+            "239d3690e69eb14d195e9fccde3a9c21a8032dcf"
+          python3 scripts/verify-repository.py
+
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+
+      - name: Run reviewed Worker security suites
+        working-directory: canonical-infra
+        run: npm test
+
+      - name: Validate deployment provenance and quote API contracts
+        working-directory: canonical-infra
+        run: |
+          python3 scripts/validate.py
+          python3 scripts/validate_quote_api.py
+
+      - name: Dry-build the Canonical Worker without publishing
+        working-directory: canonical-infra
+        run: >-
+          npx --yes wrangler@4.115.0 deploy
+          --dry-run
+          --config wrangler.toml
+          --outdir $RUNNER_TEMP/canonical-plus-worker
+
+      - name: Install kubectl
+        uses: Azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5.1.0
+
+      - name: Render production overlay without applying it
+        working-directory: canonical-infra
+        run: kubectl kustomize k8s/overlays/prod >"$RUNNER_TEMP/canonical-prod.yaml"
+
+      - name: Upload no-write GitOps evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: canonical-quote-gitops
+          path: |
+            ${{ runner.temp }}/canonical-prod.yaml
+            ${{ runner.temp }}/canonical-plus-worker
+          retention-days: 14
+          if-no-files-found: error
