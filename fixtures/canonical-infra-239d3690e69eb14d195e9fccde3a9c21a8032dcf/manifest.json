@@ -1,0 +1,11 @@
+{
+  "source_repository": "canonical-cloud/canonical-infra",
+  "source_commit": "239d3690e69eb14d195e9fccde3a9c21a8032dcf",
+  "scope": "Canonical quote API Deployment, Service, ExternalSecret, and contract validator only",
+  "files": {
+    "k8s/base/api.deployment.yaml": "fe7f461273a981368e686288d2a1fe966b816f28",
+    "k8s/base/api.service.yaml": "56d93cc6fde4b5cd045634f034e2b097b1694986",
+    "k8s/base/externalsecret.yaml": "a057cca5db69c7aa7d8ca04a86614a8b2df11097",
+    "scripts/validate_quote_api.py": "34c6ea926066ce00a85a711318e30f3d32e9f73f"
+  }
+}
