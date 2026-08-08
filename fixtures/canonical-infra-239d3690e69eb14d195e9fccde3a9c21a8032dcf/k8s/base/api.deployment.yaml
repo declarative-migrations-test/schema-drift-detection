@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: canonical-api
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  selector: {matchLabels: {app.kubernetes.io/name: canonical-api}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: canonical-api}}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 45
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: api
+          image: ghcr.io/canonical-cloud/canonical-api-server.rs@sha256:REPLACE_API_DIGEST
+          ports: [{name: http, containerPort: 8081}]
+          envFrom: [{secretRef: {name: canonical-api-runtime}}]
+          env:
+            - {name: BIND_ADDRESS, value: "0.0.0.0:8081"}
+            - {name: SHARED_AUTH_INTROSPECT_URL, value: "http://dd-shared-auth.shared-auth-canonical.svc.cluster.local:8120/auth/introspect"}
+            - {name: SHARED_AUTH_AUDIENCE, value: canonical-api}
+            - {name: QUOTE_DEFAULT_TENANT, value: canonical-plus}
+            - {name: QUOTE_CONTEXT_PATH, value: /app/context/compliance-quote.md}
+            - {name: GEMINI_MODEL, value: gemini-3.6-pro}
+            - {name: RUST_LOG, value: "canonical_api_server=info,tower_http=info"}
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 6
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+          resources: {requests: {cpu: 100m, memory: 128Mi}, limits: {cpu: "1", memory: 1Gi}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
