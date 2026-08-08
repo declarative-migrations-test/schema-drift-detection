@@ -1,9 +1,9 @@
 {
   "bootstrap_date": "2026-08-04",
-  "description": "Unauthorized schema drift detection and fail-closed apply certification against live PostgreSQL and CockroachDB.",
+  "description": "Unauthorized schema drift detection and fail-closed apply certification against live PostgreSQL and CockroachDB, plus the Canonical quote PostgreSQL contract.",
   "organization": "declarative-migrations-test",
   "production_dependency": {
-    "commit": "21eb846e356b2a5aff068b21e77903e6cca50452",
+    "commit": "d05a7880987ddaa271fa88b52c787390ef12b899",
     "path": "vendor/declarative-postgres-migrate.rs",
     "repository": "declarative-migrations/declarative-postgres-migrate.rs",
     "transport": "git-submodule"
