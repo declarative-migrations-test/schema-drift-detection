@@ -16,7 +16,7 @@ concurrency:
 jobs:
   certify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     services:
       postgres:
         image: postgres:17
@@ -29,54 +29,112 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Check out the drift test repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 1
           persist-credentials: false
           submodules: recursive
-      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+
+      - name: Check out the exact Canonical quote source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          toolchain: stable
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+          repository: canonical-cloud/canonical-api-server.rs
+          ref: 7987c05944df5c03ff2fcbeeedf2c8e79f973d75
+          path: vendor/canonical-api-server.rs
+          persist-credentials: false
+
+      - name: Install the pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: "1.95.0"
+
+      - name: Restore dpm build cache
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           workspaces: vendor/declarative-postgres-migrate.rs -> target
-      - name: Validate repository contract
-        run: python3 scripts/verify-repository.py
+
+      - name: Validate repository and Canonical source contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/verify-repository.py
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          contract = json.loads(Path('canonical-quote-source.json').read_text())
+          source = Path('vendor/canonical-api-server.rs')
+          assert hashlib.sha256(
+              (source / contract['schemaPath']).read_bytes()
+          ).hexdigest() == contract['schemaSha256']
+          namespace = json.loads((source / 'db/namespace.json').read_text())
+          assert namespace['declarativeMigration']['revision'] == contract['dpmCommit']
+          assert namespace['namespaceId'] == 'canonical_cloud__quote'
+          assert (source / contract['testScript']).is_file()
+          PY
+
       - name: Install PostgreSQL client
         run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+
       - name: Build pinned dpm
         id: dpm
         shell: bash
         run: echo "path=$(scripts/build-dpm.sh)" >> "$GITHUB_OUTPUT"
+
       - name: Start CockroachDB 25.2.4
         run: >-
           docker run --detach --name dm-cockroach
           --publish 26257:26257 --publish 8080:8080
           cockroachdb/cockroach:v25.2.4 start-single-node --insecure
+
       - name: Wait for CockroachDB
         shell: bash
         run: |
           for _ in {1..60}; do
-            if docker exec dm-cockroach cockroach sql --insecure --host=localhost:26257 --execute='SELECT 1' >/dev/null 2>&1; then exit 0; fi
+            if docker exec dm-cockroach cockroach sql --insecure --host=localhost:26257 --execute='SELECT 1' >/dev/null 2>&1; then
+              exit 0
+            fi
             sleep 2
           done
           docker logs dm-cockroach
           exit 1
-      - name: Inject and repair unauthorized drift
+
+      - name: Inject and repair generic unauthorized drift
         env:
           DPM_BIN: ${{ steps.dpm.outputs.path }}
           POSTGRES_ADMIN_URL: postgres://postgres@localhost:5432/postgres
           COCKROACH_ADMIN_URL: postgresql://root@localhost:26257/defaultdb?sslmode=disable
         run: scripts/test-schema-drift.sh
-      - name: Upload drift evidence
+
+      - name: Certify Canonical quote drift, RLS, roles, and convergence
+        env:
+          DPM_BIN: ${{ steps.dpm.outputs.path }}
+          POSTGRES_ADMIN_URL: postgres://postgres@localhost:5432/postgres
+        working-directory: vendor/canonical-api-server.rs
+        run: scripts/test-declarative-postgres.sh
+
+      - name: Upload generic drift evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: schema-drift-evidence
+          name: schema-drift-evidence-${{ github.run_id }}
           path: artifacts/schema-drift
           retention-days: 7
           if-no-files-found: error
+
+      - name: Upload bounded Canonical failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: canonical-quote-schema-drift-${{ github.run_id }}
+          path: vendor/canonical-api-server.rs/artifacts/declarative-postgres
+          retention-days: 7
+          if-no-files-found: warn
+
       - name: Stop CockroachDB
         if: always()
         run: docker rm -f dm-cockroach >/dev/null 2>&1 || true
