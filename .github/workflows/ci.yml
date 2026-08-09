@@ -42,7 +42,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           repository: canonical-cloud/canonical-api-server.rs
-          ref: 5de04889e23e69b1a0daba48ce62eb7f95ec6194
+          ref: 7987c05944df5c03ff2fcbeeedf2c8e79f973d75
           path: vendor/canonical-api-server.rs
           persist-credentials: false
 
