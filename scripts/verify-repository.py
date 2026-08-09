@@ -21,7 +21,8 @@ missing = [path for path in required if not (root / path).exists()]
 if missing:
     raise SystemExit(f"missing required files: {missing}")
 expected_dpm = "d05a7880987ddaa271fa88b52c787390ef12b899"
-expected_source = "5de04889e23e69b1a0daba48ce62eb7f95ec6194"
+expected_source = "7987c05944df5c03ff2fcbeeedf2c8e79f973d75"
+expected_schema = "712f1269da3c8dfd381af9c69a81e549a4eb52be3e4f49558ec1a5edf205e191"
 if manifest["production_dependency"]["commit"] != expected_dpm:
     raise SystemExit("production dependency pin drifted")
 dependency = json.loads((root / "production-dependency.json").read_text())
@@ -31,6 +32,8 @@ if source["dpmCommit"] != expected_dpm:
     raise SystemExit("Canonical quote dpm pin drifted")
 if source["sourceCommit"] != expected_source:
     raise SystemExit("Canonical quote source pin drifted")
+if source["schemaSha256"] != expected_schema:
+    raise SystemExit("Canonical quote schema digest drifted")
 workflow = (root / ".github/workflows/ci.yml").read_text()
 for required_text in (
     expected_source,
@@ -55,4 +58,7 @@ for path in root.rglob("*"):
         raise SystemExit(f"conflict marker in {path}")
     if re.search(r"gh[pousr]_[A-Za-z0-9]{20,}|BEGIN [A-Z ]*PRIVATE KEY", text):
         raise SystemExit(f"credential-shaped content in {path}")
-print(f"validated {manifest['organization']}/{manifest['repository']}")
+print(
+    f"validated {manifest['organization']}/{manifest['repository']} at "
+    f"Canonical source {expected_source}"
+)
