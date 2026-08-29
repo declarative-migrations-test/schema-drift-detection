@@ -1,0 +1,94 @@
+name: Canonical quote schema drift
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: canonical-quote-drift-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: quote-drift
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Checkout schema-drift harness
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Checkout exact Canonical quote schema
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: canonical-cloud/canonical-api-server.rs
+          ref: edaa7a9eff402cd7d88dd76166d547acd76b6365
+          path: canonical-api
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable source and migration pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C canonical-api rev-parse HEAD)" = \
+            "edaa7a9eff402cd7d88dd76166d547acd76b6365"
+          test "$(python3 -c 'import json; print(json.load(open("canonical-api/dpm.lock.json"))["tool"]["commit"])')" = \
+            "21eb846e356b2a5aff068b21e77903e6cca50452"
+          python3 scripts/verify-repository.py
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: stable
+
+      - name: Cache pinned dpm build
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: vendor/declarative-postgres-migrate.rs -> target
+          key: canonical-quote-drift
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+
+      - name: Build pinned dpm
+        id: dpm
+        shell: bash
+        run: echo "path=$(scripts/build-dpm.sh)" >> "$GITHUB_OUTPUT"
+
+      - name: Inject and repair quote schema drift
+        env:
+          CANONICAL_API_DIR: ${{ github.workspace }}/canonical-api
+          DPM_BIN: ${{ steps.dpm.outputs.path }}
+          POSTGRES_ADMIN_URL: postgres://postgres:quote-drift@localhost:5432/postgres
+        run: bash scripts/test-canonical-quote-drift.sh
+
+      - name: Upload exact drift evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: canonical-quote-schema-drift
+          path: artifacts/canonical-quote-drift
+          retention-days: 14
+          if-no-files-found: error

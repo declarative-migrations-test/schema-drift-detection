@@ -16,6 +16,10 @@ required = [
     "canonical-quote-source.json",
     "scripts/build-dpm.sh",
     "scripts/test-schema-drift.sh",
+    ".github/workflows/canonical-infra.yml",
+    ".github/workflows/canonical-quote.yml",
+    "scripts/test-canonical-quote-drift.sh",
+    "scripts/verify-canonical-infra-snapshot.py",
 ]
 missing = [path for path in required if not (root / path).exists()]
 if missing:
@@ -44,6 +48,36 @@ for required_text in (
 ):
     if required_text not in workflow:
         raise SystemExit(f"workflow omits {required_text}")
+
+quote_drift_workflow = (root / ".github/workflows/canonical-quote.yml").read_text()
+for required_text in (
+    "scripts/test-canonical-quote-drift.sh",
+    "persist-credentials: false",
+    "contents: read",
+):
+    if required_text not in quote_drift_workflow:
+        raise SystemExit(f"quote drift workflow omits {required_text}")
+
+quote_drift_script = (root / "scripts/test-canonical-quote-drift.sh").read_text()
+for required_text in (
+    "expect_drift_and_repair",
+    "DROP POLICY canonical_quote_owner_policy",
+    "NO FORCE ROW LEVEL SECURITY",
+    "relforcerowsecurity",
+    "--fail-on-diff",
+):
+    if required_text not in quote_drift_script:
+        raise SystemExit(f"quote drift script omits {required_text}")
+
+infra_workflow = (root / ".github/workflows/canonical-infra.yml").read_text()
+for required_text in (
+    "scripts/verify-canonical-infra-snapshot.py",
+    "persist-credentials: false",
+    "contents: read",
+):
+    if required_text not in infra_workflow:
+        raise SystemExit(f"GitOps snapshot workflow omits {required_text}")
+
 for path in root.rglob("*"):
     relative = path.relative_to(root)
     if not path.is_file() or ".git" in relative.parts or "vendor" in relative.parts:
