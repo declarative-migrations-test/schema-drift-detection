@@ -1,0 +1,48 @@
+name: Canonical quote GitOps snapshot
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: canonical-quote-gitops-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout test harness and pinned snapshot
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Validate test repository contract
+        run: python3 scripts/verify-repository.py
+
+      - name: Verify exact private-source blob snapshot
+        run: python3 scripts/verify-canonical-infra-snapshot.py
+
+      - name: Compile and execute the exact quote validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          snapshot="fixtures/canonical-infra-239d3690e69eb14d195e9fccde3a9c21a8032dcf"
+          python3 -m py_compile "${snapshot}/scripts/validate_quote_api.py"
+          python3 "${snapshot}/scripts/validate_quote_api.py"
+
+      - name: Upload reviewed quote GitOps bytes and manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: canonical-quote-gitops-239d3690
+          path: fixtures/canonical-infra-239d3690e69eb14d195e9fccde3a9c21a8032dcf
+          retention-days: 14
+          if-no-files-found: error
