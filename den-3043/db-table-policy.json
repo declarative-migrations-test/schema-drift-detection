@@ -1,0 +1,46 @@
+{
+  "schema": "ores.db-table-policy/v1",
+  "managedSchemasFromDeclarativeMigrations": [
+    "auth",
+    "storage",
+    "realtime",
+    "_realtime",
+    "supabase_functions",
+    "supabase_migrations",
+    "graphql",
+    "graphql_public",
+    "pgbouncer",
+    "pgsodium",
+    "pgsodium_masks",
+    "vault",
+    "extensions",
+    "pgtle",
+    "_analytics",
+    "net",
+    "cron",
+    "pgmq",
+    "topology",
+    "tiger",
+    "tiger_data"
+  ],
+  "internalSchemas": ["information_schema", "pg_catalog", "pg_toast"],
+  "internalPrefixes": ["pg_", "crdb_"],
+  "migrationBookkeepingTables": [
+    "_prisma_migrations",
+    "_sqlx_migrations",
+    "__diesel_schema_migrations",
+    "flyway_schema_history",
+    "knex_migrations",
+    "schema_migrations",
+    "seaql_migrations"
+  ],
+  "identifierPolicy": {
+    "case": "lowercase",
+    "canonicalIdentity": "schema.table",
+    "implicitSchema": "public"
+  },
+  "declmigClients": {
+    "zedPackage": "declarative-migrations/declmig-clients",
+    "version": "0.1.0"
+  }
+}
