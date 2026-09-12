@@ -30,7 +30,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out exact test head and pinned migration engine
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
@@ -47,7 +47,7 @@ jobs:
           git -C vendor/declarative-postgres-migrate.rs rev-parse HEAD
 
       - name: Check out declmig-clients at the package revision under certification
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: declarative-migrations/declmig-clients
           ref: ${{ env.DECLMIG_CLIENTS_REVISION }}

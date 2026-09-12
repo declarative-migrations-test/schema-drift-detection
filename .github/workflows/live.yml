@@ -16,15 +16,15 @@ jobs:
       CROSS_ORG_APP_ID: ${{ vars.CROSS_ORG_APP_ID }}
       CROSS_ORG_APP_PRIVATE_KEY: ${{ secrets.CROSS_ORG_APP_PRIVATE_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: app-token
         if: env.CROSS_ORG_APP_ID != '' && env.CROSS_ORG_APP_PRIVATE_KEY != ''
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ env.CROSS_ORG_APP_ID }}
           private-key: ${{ env.CROSS_ORG_APP_PRIVATE_KEY }}
           owner: declarative-migrations
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: python -m pip install -e '.[test]'
