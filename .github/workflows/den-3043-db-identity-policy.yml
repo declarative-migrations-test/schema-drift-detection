@@ -1,0 +1,81 @@
+name: DEN-3043 database identity policy
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/den-3043-db-identity-policy.yml'
+      - 'den-3043/**'
+      - 'scripts/test-den-3043-db-policy.py'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/den-3043-db-identity-policy.yml'
+      - 'den-3043/**'
+      - 'scripts/test-den-3043-db-policy.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: den-3043-db-identity-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DECLMIG_CLIENTS_REVISION: f80a816357a8efad867816b67458197624259251
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact test head and pinned migration engine
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Verify exact test revision
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          git -C vendor/declarative-postgres-migrate.rs rev-parse HEAD
+
+      - name: Check out declmig-clients at the package revision under certification
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: declarative-migrations/declmig-clients
+          ref: ${{ env.DECLMIG_CLIENTS_REVISION }}
+          path: vendor/declmig-clients
+          persist-credentials: false
+
+      - name: Certify namespace policy and zed package boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C vendor/declmig-clients rev-parse HEAD)" = "$DECLMIG_CLIENTS_REVISION"
+          python3 scripts/test-den-3043-db-policy.py | tee "$RUNNER_TEMP/den-3043-db-policy.json"
+          python3 - "$RUNNER_TEMP/den-3043-db-policy.json" <<'PY'
+          import json, sys
+          receipt = json.load(open(sys.argv[1]))
+          assert receipt['schema'] == 'ores.db-table-policy/v1'
+          assert receipt['status'] == 'passed'
+          assert receipt['managedSchemasChecked'] >= 20
+          assert receipt['bookkeepingTablesChecked'] >= 7
+          assert receipt['declmigClientsVersion'] == '0.1.0'
+          assert receipt['cases'] >= 8
+          PY
+
+      - name: Retain policy receipt
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: den-3043-db-identity-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/den-3043-db-policy.json
+          if-no-files-found: warn
+          retention-days: 14
