@@ -1,0 +1,9 @@
+LICENSE
+README.md
+pyproject.toml
+schema_drift_detection_harness.egg-info/PKG-INFO
+schema_drift_detection_harness.egg-info/SOURCES.txt
+schema_drift_detection_harness.egg-info/dependency_links.txt
+schema_drift_detection_harness.egg-info/requires.txt
+schema_drift_detection_harness.egg-info/top_level.txt
+tests/test_generated_contract.py
